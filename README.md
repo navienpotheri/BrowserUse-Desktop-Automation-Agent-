@@ -21,7 +21,7 @@ Benchmark tasks and known solutions stay out of training data. Record data sourc
 
 ## BrowserGym adapter
 
-Install the optional integration with pip install -e '.[browsergym]', then install Chromium with playwright install chromium.
+For the lightweight MiniWoB smoke run, install with pip install -e '.[browsergym]' and install Chromium with playwright install chromium. Add the larger WorkArena dependencies with pip install -e '.[workarena]' or WebArena with pip install -e '.[webarena]'.
 
 BrowserGymEnvironment accepts registered task IDs such as browsergym/miniwob.choose-list, browsergym/webarena.10, or a WorkArena task ID. WorkArena also requires a configured ServiceNow developer instance; follow the BrowserGym setup guide: https://browsergym.readthedocs.io/latest/environments/workarena.html.
 
@@ -29,4 +29,4 @@ The adapter passes only the task goal and screenshot to the model. It does not p
 
 ## Current scope
 
-The shared loop and BrowserGym adapter are implemented. Model backends, a fixed pilot task manifest, propose–verify–execute, and the OSWorld adapter are still to come. The first integration smoke run will validate the adapter contract; benchmark comparisons begin after a model backend is connected.
+The shared loop and BrowserGym adapter are implemented. Model backends, a fixed pilot task manifest, propose–verify–execute, and the OSWorld adapter are still to come. The first integration smoke run validates the adapter contract; benchmark comparisons begin after a model backend is connected.
