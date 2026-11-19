@@ -10,12 +10,9 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-browsergym = [
-  "browsergym-workarena",
-  "browsergym-miniwob",
-  "browsergym-webarena",
-  "Pillow>=10",
-]
+browsergym = ["browsergym-miniwob", "Pillow>=10"]
+workarena = ["browsergym-workarena"]
+webarena = ["browsergym-webarena"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
