@@ -5,35 +5,53 @@ An experimental, model-neutral harness for browser and desktop automation resear
 ## Project sequence
 
 1. Define a stable action and observation interface.
-2. Run a small BrowserGym/WorkArena pilot with a fixed task list and save trajectories.
+2. Run BrowserGym tasks and save trajectories.
 3. Compare a single-model loop with propose–verify–execute.
-4. Post-train on separate interaction data and re-run held-out tasks.
+4. Post-train on separate interaction data and evaluate held-out tasks.
 5. Expand to OSWorld after browser evaluation is repeatable.
 
 Benchmark task content and known solutions must not enter training data. Record dataset provenance and benchmark versions with each run.
 
 ## Harness contract
 
-- Observation carries a screenshot file path and image dimensions.
-- A Model receives the task goal and observation, and returns one typed Action.
+- An Observation contains a screenshot path and dimensions.
+- A Model receives the task goal and screenshot, then returns one typed Action.
 - An Environment resets a task and executes one action at a time.
-- AgentLoop writes each observation/action/result to JSONL for later analysis.
-- The BrowserGym adapter implements the environment protocol; OSWorld and model backends are later milestones.
+- AgentLoop logs observations, proposed actions, execution results, and summaries as JSONL.
 
-The first interface deliberately uses screenshots and normalized 0–1000 coordinates so the same action representation can be used for browser and desktop environments. A DOM/accessibility observation can be added later as a separate experimental condition.
+The initial interface uses screenshots and normalized 0–1000 coordinates. The BrowserGym adapter passes only the goal and screenshot to the model; it does not forward the page DOM, accessibility tree, or diagnostic info.
 
-## BrowserGym adapter
+## Local model: Ollama + Qwen2.5-VL 3B
 
-Install the lightweight smoke-run integration with pip install -e '.[browsergym]', then install Chromium with playwright install chromium. MiniWoB++ task pages must also be downloaded and exposed through MINIWOB_URL. For a reproducible setup, clone the official MiniWoB++ repository (https://github.com/Farama-Foundation/miniwob-plusplus) at commit 7fd85d71a4b60325c6585396ec4f48377d049838, then set MINIWOB_URL to the absolute miniwob/html/miniwob/ path using the file:// scheme, including the trailing slash. On Windows:
+The model backend defaults to the local Ollama endpoint and qwen2.5vl:3b. Ollama lists this quantized model at about 3.2 GB. Install Ollama from https://ollama.com/download, then open a PowerShell window and download the model:
+
+    ollama pull qwen2.5vl:3b
+
+Ollama runs its local API at http://localhost:11434. The backend uses its OpenAI-compatible vision endpoint. Configure the runner if you use a different local model or endpoint:
+
+    $env:MODEL_BASE_URL = "http://localhost:11434/v1"
+    $env:MODEL_NAME = "qwen2.5vl:3b"
+    $env:MODEL_API_KEY = "ollama"
+
+## BrowserGym setup
+
+Install the project and browser dependencies:
+
+    pip install -e ".[browsergym]"
+    playwright install chromium
+
+MiniWoB++ task pages must also be downloaded and exposed through MINIWOB_URL. For a reproducible setup, clone the official https://github.com/Farama-Foundation/miniwob-plusplus repository at commit 7fd85d71a4b60325c6585396ec4f48377d049838. Set MINIWOB_URL to the absolute miniwob/html/miniwob/ path using the file:// scheme, including the trailing slash. On Windows:
 
     git clone https://github.com/Farama-Foundation/miniwob-plusplus.git
     git -C miniwob-plusplus checkout 7fd85d71a4b60325c6585396ec4f48377d049838
     $env:MINIWOB_URL = "file:///C:/path/to/miniwob-plusplus/miniwob/html/miniwob/"
 
-Then run a short adapter smoke check before evaluating a model. To add WorkArena dependencies, run pip install -e '.[workarena]'; for WebArena, run pip install -e '.[webarena]'. The adapter accepts registered BrowserGym task IDs such as browsergym/miniwob.choose-list or a WorkArena task ID. WorkArena also requires a configured ServiceNow developer instance; see https://browsergym.readthedocs.io/latest/environments/workarena.html.
+Run one task with the local model:
 
-The adapter passes only the task goal and screenshot to the model. It does not forward BrowserGym's DOM, accessibility tree, or diagnostic info fields. Coordinates are translated from the shared 0–1000 scale to the current screenshot dimensions. BrowserGym's own reward and terminal flag provide the task success signal.
+    python -m browseruse_agent.run_browsergym --task browsergym/miniwob.choose-list --max-steps 30
+
+The runner writes a JSONL trajectory to .agent_runs/trajectory.jsonl. A short smoke run confirms wiring only; benchmark comparisons need a fixed task manifest and recorded model settings. WorkArena additionally needs a configured ServiceNow developer instance; see https://browsergym.readthedocs.io/latest/environments/workarena.html.
 
 ## Current status
 
-The BrowserGym adapter is implemented and has completed a two-action MiniWoB integration smoke run. This confirms task launch, screenshot capture, action translation, and trajectory logging; it is not a benchmark score. There is no model backend or desktop VM integration yet.
+The BrowserGym adapter completed a two-action MiniWoB smoke run using a no-op model. An OpenAI-compatible local vision backend and task runner are now in the repo. They still need to be run against the local Ollama server before we can report a model baseline or benchmark score.
