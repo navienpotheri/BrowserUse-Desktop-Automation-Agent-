@@ -30,8 +30,8 @@ Only use finish when the task appears complete. Never claim success in text."""
 class OpenAICompatibleVisionModel:
     """Send goal + screenshot to a Chat Completions-compatible VLM endpoint.
 
-    Configure MODEL_BASE_URL (for example http://localhost:8000/v1),
-    MODEL_NAME, and optionally MODEL_API_KEY in the environment.
+    Defaults to the local Ollama server and Qwen2.5-VL 3B. Override
+    MODEL_BASE_URL, MODEL_NAME, and optionally MODEL_API_KEY as needed.
     """
 
     def __init__(
@@ -41,9 +41,13 @@ class OpenAICompatibleVisionModel:
         api_key: str | None = None,
         timeout_seconds: float = 120,
     ) -> None:
-        self.base_url = (base_url or os.environ.get("MODEL_BASE_URL", "")).rstrip("/")
-        self.model = model or os.environ.get("MODEL_NAME", "")
-        self.api_key = api_key if api_key is not None else os.environ.get("MODEL_API_KEY", "")
+        self.base_url = (
+            base_url or os.environ.get("MODEL_BASE_URL", "http://localhost:11434/v1")
+        ).rstrip("/")
+        self.model = model or os.environ.get("MODEL_NAME", "qwen2.5vl:3b")
+        self.api_key = (
+            api_key if api_key is not None else os.environ.get("MODEL_API_KEY", "ollama")
+        )
         self.timeout_seconds = timeout_seconds
         if not self.base_url:
             raise ValueError("Set MODEL_BASE_URL to an OpenAI-compatible /v1 endpoint")
@@ -67,9 +71,7 @@ class OpenAICompatibleVisionModel:
                         {"type": "text", "text": f"Task goal: {goal}"},
                         {
                             "type": "image_url",
-                            "image_url": {
-                                "url": f"data:{image_mime};base64,{image_data}"
-                            },
+                            "image_url": f"data:{image_mime};base64,{image_data}",
                         },
                     ],
                 },
