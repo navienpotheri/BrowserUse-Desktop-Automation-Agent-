@@ -1,4 +1,4 @@
-"""BrowserGym adapter that exposes screenshot-only observations."""
+"""BrowserGym adapter with optional accessibility observations."""
 
 from __future__ import annotations
 
@@ -13,10 +13,8 @@ from .interfaces import Observation, StepResult
 class BrowserGymEnvironment:
     """Wrap a BrowserGym task behind the project Environment protocol.
 
-    BrowserGym returns richer observations than this agent currently uses.
-    This adapter deliberately exposes only the goal and screenshot, keeping
-    DOM and accessibility information out of the model input for the initial
-    screenshot-only condition.
+    Accessibility text is optional so screenshot-only and screenshot-plus-
+    accessibility benchmark conditions can be compared fairly.
     """
 
     name = "browsergym"
@@ -27,11 +25,13 @@ class BrowserGymEnvironment:
         screenshot_dir: Path = Path(".agent_runs/screenshots"),
         seed: int = 0,
         headless: bool = True,
+        include_accessibility_tree: bool = False,
     ) -> None:
         self.task_id = task_id
         self.screenshot_dir = screenshot_dir
         self.seed = seed
         self.headless = headless
+        self.include_accessibility_tree = include_accessibility_tree
         self._env: Any | None = None
         self._goal = ""
         self._step_index = 0
@@ -97,15 +97,33 @@ class BrowserGymEnvironment:
         image_path = self.screenshot_dir / safe_task_id / f"step-{self._step_index:04d}.png"
         image_path.parent.mkdir(parents=True, exist_ok=True)
         Image.fromarray(screenshot).save(image_path)
+        accessibility_tree = None
+        if self.include_accessibility_tree:
+            axtree = raw.get("axtree_object")
+            if axtree is not None:
+                from browsergym.utils.obs import flatten_axtree_to_str
+
+                accessibility_tree = flatten_axtree_to_str(
+                    axtree,
+                    extra_properties=raw.get("extra_element_properties") or {},
+                    with_visible=True,
+                    with_clickable=True,
+                    with_bounding_box_coords=True,
+                    filter_visible_only=True,
+                    filter_with_bid_only=True,
+                )
         return Observation(
             screenshot=image_path,
             width=self._width,
             height=self._height,
             step_index=self._step_index,
+            accessibility_tree=accessibility_tree,
         )
 
     def _encode_action(self, action: Action) -> str:
         if action.kind is ActionKind.CLICK:
+            if action.target_id is not None:
+                return f"click({action.target_id!r})"
             x = self._pixel(action.x, self._width)
             y = self._pixel(action.y, self._height)
             return f"mouse_click({x}, {y}, 'left')"
@@ -130,7 +148,7 @@ class BrowserGymEnvironment:
     @staticmethod
     def _pixel(coordinate: int | None, extent: int) -> int:
         if coordinate is None:
-            raise ValueError("click action requires x and y coordinates")
+            raise ValueError("click action requires x and y")
         if extent <= 0:
             raise RuntimeError("reset the environment before sending coordinates")
         return round((coordinate / 1000) * (extent - 1))
