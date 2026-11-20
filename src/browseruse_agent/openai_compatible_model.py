@@ -16,9 +16,11 @@ from .interfaces import Observation
 
 
 SYSTEM_PROMPT = """You control a browser using one action per turn.
-You receive a task goal and a screenshot. Return exactly one JSON object, with
+You receive a task goal, a screenshot, and sometimes an accessibility list of
+visible browser controls. Return exactly one JSON object, with
 no markdown or extra text, using this schema:
 {"kind":"click","x":500,"y":500}
+{"kind":"click","target_id":"browsergym-element-id"}
 {"kind":"type","text":"text to enter"}
 {"kind":"key","key":"ENTER"}
 {"kind":"scroll","direction":"down","amount":400}
@@ -27,6 +29,8 @@ no markdown or extra text, using this schema:
 Click coordinates use the full screenshot: x=0 is left, x=1000 is right,
 y=0 is top, and y=1000 is bottom. Scale the visible target's position to this
 range; do not return pixel coordinates.
+When an accessibility list is provided, prefer target_id from that list to
+click a named control, and use coordinates only when no suitable target exists.
 If the user message includes a previous action and says the screenshot did not
 change, treat that action as unsuccessful. Choose a different action or a
 corrected target; do not repeat the same click or key without visible progress.
@@ -93,7 +97,9 @@ class OpenAICompatibleVisionModel:
                     "content": [
                         {
                             "type": "text",
-                            "text": f"Task goal: {goal}\n\n{action_context}",
+                            "text": self._format_user_text(
+                                goal, action_context, observation.accessibility_tree
+                            ),
                         },
                         {
                             "type": "image_url",
@@ -150,6 +156,7 @@ class OpenAICompatibleVisionModel:
                 kind=kind,
                 x=parsed.get("x"),
                 y=parsed.get("y"),
+                target_id=parsed.get("target_id"),
                 text=parsed.get("text"),
                 key=parsed.get("key"),
                 direction=parsed.get("direction"),
@@ -157,3 +164,12 @@ class OpenAICompatibleVisionModel:
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise RuntimeError(f"Model returned an invalid action: {parsed}") from exc
+
+    @staticmethod
+    def _format_user_text(
+        goal: str, action_context: str, accessibility_tree: str | None
+    ) -> str:
+        text = f"Task goal: {goal}\n\n{action_context}"
+        if accessibility_tree:
+            text += f"\n\nVisible browser controls (accessibility tree):\n{accessibility_tree}"
+        return text
