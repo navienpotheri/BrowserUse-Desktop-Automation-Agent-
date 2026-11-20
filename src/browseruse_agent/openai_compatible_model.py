@@ -20,7 +20,6 @@ You receive a task goal, a screenshot, and sometimes an accessibility list of
 visible browser controls. Return exactly one JSON object, with
 no markdown or extra text, using this schema:
 {"kind":"click","x":500,"y":500}
-{"kind":"click","target_id":"browsergym-element-id"}
 {"kind":"type","text":"text to enter"}
 {"kind":"key","key":"ENTER"}
 {"kind":"scroll","direction":"down","amount":400}
@@ -29,8 +28,11 @@ no markdown or extra text, using this schema:
 Click coordinates use the full screenshot: x=0 is left, x=1000 is right,
 y=0 is top, and y=1000 is bottom. Scale the visible target's position to this
 range; do not return pixel coordinates.
-When an accessibility list is provided, prefer target_id from that list to
-click a named control, and use coordinates only when no suitable target exists.
+To click using the accessibility list, return a click action with a target_id
+copied exactly from a real entry in that list. Never invent an ID or copy an
+example placeholder. If there is no suitable listed ID, click using screenshot
+coordinates instead.
+When an accessibility list is provided, prefer its exact ID for a named control.
 If the user message includes a previous action and says the screenshot did not
 change, treat that action as unsuccessful. Choose a different action or a
 corrected target; do not repeat the same click or key without visible progress.
