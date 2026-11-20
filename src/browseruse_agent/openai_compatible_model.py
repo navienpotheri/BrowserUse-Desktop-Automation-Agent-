@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import mimetypes
 import os
@@ -23,7 +24,12 @@ no markdown or extra text, using this schema:
 {"kind":"scroll","direction":"down","amount":400}
 {"kind":"wait","amount":250}
 {"kind":"finish"}
-Click coordinates are integers from 0 to 1000 relative to the screenshot.
+Click coordinates use the full screenshot: x=0 is left, x=1000 is right,
+y=0 is top, and y=1000 is bottom. Scale the visible target's position to this
+range; do not return pixel coordinates.
+If the user message includes a previous action and says the screenshot did not
+change, treat that action as unsuccessful. Choose a different action or a
+corrected target; do not repeat the same click or key without visible progress.
 Only use finish when the task appears complete. Never claim success in text."""
 
 
@@ -54,11 +60,28 @@ class OpenAICompatibleVisionModel:
         if not self.model:
             raise ValueError("Set MODEL_NAME to the model ID served by that endpoint")
         self.name = self.model
+        self._previous_action: dict[str, object] | None = None
+        self._previous_screenshot_sha256: str | None = None
+
+    def reset_context(self) -> None:
+        """Clear action feedback before starting a new task."""
+        self._previous_action = None
+        self._previous_screenshot_sha256 = None
 
     def propose(self, goal: str, observation: Observation) -> Action:
         image_path = Path(observation.screenshot)
         image_mime = mimetypes.guess_type(image_path.name)[0] or "image/png"
-        image_data = base64.b64encode(image_path.read_bytes()).decode("ascii")
+        image_bytes = image_path.read_bytes()
+        image_data = base64.b64encode(image_bytes).decode("ascii")
+        screenshot_sha256 = hashlib.sha256(image_bytes).hexdigest()
+        if self._previous_action is None:
+            action_context = "Previous action: none; this is the first turn."
+        else:
+            changed = screenshot_sha256 != self._previous_screenshot_sha256
+            action_context = (
+                f"Previous action: {json.dumps(self._previous_action)}\n"
+                f"Visible screenshot changed since that action: {'yes' if changed else 'no'}."
+            )
         payload = {
             "model": self.model,
             "temperature": 0,
@@ -68,7 +91,10 @@ class OpenAICompatibleVisionModel:
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": f"Task goal: {goal}"},
+                        {
+                            "type": "text",
+                            "text": f"Task goal: {goal}\n\n{action_context}",
+                        },
                         {
                             "type": "image_url",
                             "image_url": f"data:{image_mime};base64,{image_data}",
@@ -99,7 +125,10 @@ class OpenAICompatibleVisionModel:
             raise RuntimeError("Model endpoint response did not contain a chat message") from exc
         if not isinstance(content, str):
             raise RuntimeError("Model endpoint returned non-text action content")
-        return self._parse_action(content)
+        action = self._parse_action(content)
+        self._previous_action = action.to_dict()
+        self._previous_screenshot_sha256 = screenshot_sha256
+        return action
 
     @staticmethod
     def _parse_action(content: str) -> Action:
