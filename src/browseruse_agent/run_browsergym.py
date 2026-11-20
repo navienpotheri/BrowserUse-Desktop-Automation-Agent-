@@ -21,7 +21,7 @@ def main() -> None:
     args = parser.parse_args()
 
     model = OpenAICompatibleVisionModel()
-    environment = BrowserGymEnvironment(seed=args.seed)
+    environment = BrowserGymEnvironment(task_id=args.task, seed=args.seed)
     try:
         summary = AgentLoop(model, environment, max_steps=args.max_steps).run(
             args.task, args.log
