@@ -17,11 +17,19 @@ def main() -> None:
     parser.add_argument("--task", default="browsergym/miniwob.choose-list")
     parser.add_argument("--max-steps", type=int, default=30)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--include-accessibility-tree",
+        action="store_true",
+        help="Give the model visible BrowserGym accessibility text and element IDs",
+    )
     parser.add_argument("--log", type=Path, default=Path(".agent_runs/trajectory.jsonl"))
     args = parser.parse_args()
 
     model = OpenAICompatibleVisionModel()
-    environment = BrowserGymEnvironment(task_id=args.task, seed=args.seed)
+    environment = BrowserGymEnvironment(
+        seed=args.seed,
+        include_accessibility_tree=args.include_accessibility_tree,
+    )
     try:
         summary = AgentLoop(model, environment, max_steps=args.max_steps).run(
             args.task, args.log
