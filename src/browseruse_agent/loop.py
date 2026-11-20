@@ -39,6 +39,9 @@ class AgentLoop:
     def run(self, task_id: str, log_path: Path) -> RunSummary:
         run_id = str(uuid4())
         started = time.monotonic()
+        reset_context = getattr(self.model, "reset_context", None)
+        if callable(reset_context):
+            reset_context()
         goal, observation = self.environment.reset(task_id)
         steps = 0
         terminated = False
