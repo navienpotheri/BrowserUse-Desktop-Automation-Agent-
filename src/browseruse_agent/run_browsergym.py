@@ -27,6 +27,7 @@ def main() -> None:
 
     model = OpenAICompatibleVisionModel()
     environment = BrowserGymEnvironment(
+        task_id=args.task,
         seed=args.seed,
         include_accessibility_tree=args.include_accessibility_tree,
     )
