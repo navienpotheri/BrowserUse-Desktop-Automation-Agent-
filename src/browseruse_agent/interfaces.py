@@ -15,6 +15,7 @@ class Observation:
     width: int
     height: int
     step_index: int
+    accessibility_tree: str | None = None
     metadata: dict[str, object] = field(default_factory=dict)
 
 
