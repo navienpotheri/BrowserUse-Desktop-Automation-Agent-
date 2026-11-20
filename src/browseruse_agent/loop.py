@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -26,6 +27,7 @@ class RunSummary:
     terminated: bool
     truncated: bool
     success: bool | None
+    stop_reason: str | None
 
 
 class AgentLoop:
@@ -47,6 +49,9 @@ class AgentLoop:
         terminated = False
         truncated = False
         success: bool | None = None
+        stop_reason: str | None = None
+        previous_action: dict[str, object] | None = None
+        previous_observation_sha256: str | None = None
 
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as log:
@@ -61,11 +66,34 @@ class AgentLoop:
                     ),
                 )
                 steps += 1
+                observation_sha256 = hashlib.sha256(
+                    observation.screenshot.read_bytes()
+                ).hexdigest()
+                if (
+                    proposed.kind is not ActionKind.WAIT
+                    and proposed.to_dict() == previous_action
+                    and observation_sha256 == previous_observation_sha256
+                ):
+                    stop_reason = "repeated_action_without_visual_change"
+                    truncated = True
+                    success = False
+                    self._write(
+                        log,
+                        self._event(
+                            "action_skipped", run_id, task_id, goal, observation,
+                            action=proposed.to_dict(),
+                            step_index=step_index,
+                            reason=stop_reason,
+                        ),
+                    )
+                    break
                 if proposed.kind is ActionKind.FINISH:
                     terminated = True
                     break
 
                 result = self.environment.step(proposed)
+                previous_action = proposed.to_dict()
+                previous_observation_sha256 = observation_sha256
                 observation = result.observation
                 terminated = result.terminated
                 truncated = result.truncated
@@ -101,6 +129,7 @@ class AgentLoop:
             terminated=terminated,
             truncated=truncated,
             success=success,
+            stop_reason=stop_reason,
         )
         with log_path.open("a", encoding="utf-8") as log:
             log.write(
