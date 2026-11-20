@@ -26,10 +26,15 @@ class Action:
     key: str | None = None
     direction: str | None = None
     amount: int | None = None
+    target_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.kind is ActionKind.CLICK:
-            self._require_coordinates()
+            if self.target_id is not None:
+                if not isinstance(self.target_id, str) or not self.target_id.strip():
+                    raise ValueError("click target_id cannot be empty")
+            else:
+                self._require_coordinates()
         elif self.kind is ActionKind.TYPE and not self.text:
             raise ValueError("type action requires non-empty text")
         elif self.kind is ActionKind.KEY and not self.key:
@@ -52,6 +57,7 @@ class Action:
     def to_dict(self) -> dict[str, object]:
         return {
             "kind": self.kind.value,
+            "target_id": self.target_id,
             "x": self.x,
             "y": self.y,
             "text": self.text,
